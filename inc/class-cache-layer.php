@@ -18,7 +18,7 @@ class Cache_Layer implements \Aws\CacheInterface, \Countable {
 	 * @return mixed|null
 	 */
 	public function get( $key ) {
-		return wp_cache_get( $key, 's3-uploads-cache' );
+		return get_transient("offload_s3/{$key}");
 	}
 
 	/**
@@ -30,8 +30,8 @@ class Cache_Layer implements \Aws\CacheInterface, \Countable {
 	 *
 	 * @return mixed
 	 */
-	public function set( $key, $value, $ttl = 0 ) {
-		wp_cache_set( $key, $value, 's3-uploads-cache', $ttl );
+	public function set( $key, $value, $ttl = WEEK_IN_SECONDS ) {
+		set_transient("offload_s3/{$key}", $value, $ttl);
 	}
 
 	/**
@@ -42,7 +42,7 @@ class Cache_Layer implements \Aws\CacheInterface, \Countable {
 	 * @return mixed
 	 */
 	public function remove( $key ) {
-		wp_cache_delete( $key, 's3-uploads-cache' );
+		delete_transient("offload_s3/{$key}");
 	}
 
 	/**
@@ -50,7 +50,7 @@ class Cache_Layer implements \Aws\CacheInterface, \Countable {
 	 *
 	 * @return int
 	 */
-	public function count():int {
+	public function count(): int {
 		return 0;
 	}
 

@@ -146,7 +146,7 @@ class Plugin {
 		if ( defined( 'S3_UPLOADS_USE_LOCAL' ) && S3_UPLOADS_USE_LOCAL ) {
 			stream_wrapper_register( 's3', 'S3_Uploads\Local_Stream_Wrapper', STREAM_IS_URL );
 		} else {
-			Stream_Wrapper::register( $this, 's3', new Cache_Layer() );
+			Stream_Wrapper::register( $this );
 			$acl = defined( 'S3_UPLOADS_OBJECT_ACL' ) ? S3_UPLOADS_OBJECT_ACL : 'public-read';
 			stream_context_set_option( stream_context_get_default(), 's3', 'ACL', $acl );
 		}
@@ -157,7 +157,7 @@ class Plugin {
 	/**
 	 * Get the s3:// path for the bucket.
 	 */
-	public function get_s3_path() {
+	public function get_s3_path() : string {
 		return 's3://' . $this->bucket;
 	}
 
@@ -184,12 +184,6 @@ class Plugin {
 			} else {
 				$dirs['url']     = str_replace( $s3_path, $this->get_s3_url(), $dirs['path'] );
 				$dirs['baseurl'] = str_replace( $s3_path, $this->get_s3_url(), $dirs['basedir'] );
-
-				// The s3:// protocol is not needed when displaying the media library and slows things down in some cases.
-				if ( isset( $_POST['action'] ) && 'query-attachments' === $_POST['action'] ) {
-					$dirs['path']    = $this->original_upload_dir['path'];
-					$dirs['basedir'] = $this->original_upload_dir['basedir'];
-				}
 			}
 		}
 
