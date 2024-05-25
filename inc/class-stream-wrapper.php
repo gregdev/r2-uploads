@@ -251,7 +251,7 @@ class Stream_Wrapper {
 		 */
 		$params = apply_filters( 's3_uploads_putObject_params', $params );
 
-		$this->clearCacheKey( "s3://{$params['Bucket']}/{$params['Key']}" );
+		//$this->clearCacheKey( "s3://{$params['Bucket']}/{$params['Key']}" );
 		return $this->boolCall(
 			function () use ( $params ) {
 				$bool = (bool) $this->getClient()->putObject( $params );
