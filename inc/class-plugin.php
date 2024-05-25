@@ -5,6 +5,7 @@ namespace S3_Uploads;
 use Aws;
 use Exception;
 use WP_Error;
+use S3_Uploads\Local_Stream_Wrapper;
 
 /**
  * @psalm-consistent-constructor
@@ -144,9 +145,9 @@ class Plugin {
 	 */
 	public function register_stream_wrapper() {
 		if ( defined( 'S3_UPLOADS_USE_LOCAL' ) && S3_UPLOADS_USE_LOCAL ) {
-			stream_wrapper_register( 's3', 'S3_Uploads\Local_Stream_Wrapper', STREAM_IS_URL );
+			stream_wrapper_register( 's3', Local_Stream_Wrapper::class, STREAM_IS_URL );
 		} else {
-			Stream_Wrapper::register( $this );
+			Stream_Wrapper::register( $this, 's3', new Cache_Layer() );
 			$acl = defined( 'S3_UPLOADS_OBJECT_ACL' ) ? S3_UPLOADS_OBJECT_ACL : 'public-read';
 			stream_context_set_option( stream_context_get_default(), 's3', 'ACL', $acl );
 		}
