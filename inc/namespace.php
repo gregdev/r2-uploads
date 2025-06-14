@@ -6,7 +6,7 @@ function init()
 {
 	// Ensure the AWS SDK can be loaded.
 	if (!class_exists('\Aws\S3\S3Client')) {
-		// Require AWS Autoloader file.
+		// Require Autoloader file.
 		require_once dirname(__DIR__) . '/vendor/autoload.php';
 	}
 
@@ -102,7 +102,7 @@ function outdated_wp_version_notice()
  * Check if URL rewriting is enabled.
  *
  * Define R2_UPLOADS_AUTOENABLE to false in your wp-config to disable, or use the
- * s3_uploads_enabled option.
+ * r2_uploads_enabled option.
  *
  * @return bool
  */
@@ -111,7 +111,7 @@ function enabled(): bool
 	// Make sure the plugin is enabled when autoenable is on
 	$constant_autoenable_off = (defined('R2_UPLOADS_AUTOENABLE') && false === R2_UPLOADS_AUTOENABLE);
 
-	if ($constant_autoenable_off && 'enabled' !== get_option('s3_uploads_enabled')) {  // If the plugin is not enabled, skip
+	if ($constant_autoenable_off && 'enabled' !== get_option('r2_uploads_enabled')) {  // If the plugin is not enabled, skip
 		return false;
 	}
 

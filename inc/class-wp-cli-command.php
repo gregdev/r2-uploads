@@ -10,25 +10,25 @@ use WP_CLI;
 class WP_CLI_Command extends \WP_CLI_Command
 {
 	/**
-	 * Verifies the API keys entered will work for writing and deleting from S3.
+	 * Verifies the API keys entered will work for writing and deleting from R2.
 	 *
 	 * @subcommand verify
 	 */
 	public function verify_api_keys()
 	{
-		// Verify first that we have the necessary access keys to connect to S3.
-		if (!$this->verify_s3_access_constants()) {
+		// Verify first that we have the necessary access keys to connect to R2.
+		if (!$this->verify_r2_access_constants()) {
 			return;
 		}
 
-		// Get S3 Upload instance.
+		// Get R2 Upload instance.
 		$instance = Plugin::get_instance();
 
 		// Create a path in the base directory, with a random file name to avoid potentially overwriting existing data.
 		$upload_dir = wp_upload_dir();
 		$s3_path = $upload_dir['basedir'] . '/' . wp_rand() . '.txt';
 
-		// Attempt to copy the local Canola test file to the generated path on S3.
+		// Attempt to copy the local Canola test file to the generated path on R2.
 		WP_CLI::print_value('Attempting to upload file ' . $s3_path);
 
 		$copy = copy(
@@ -56,68 +56,9 @@ class WP_CLI_Command extends \WP_CLI_Command
 			return;
 		}
 
-		WP_CLI::print_value('File deleted from S3 successfully.');
+		WP_CLI::print_value('File deleted from R2 successfully.');
 
 		WP_CLI::success('Looks like your configuration is correct.');
-	}
-
-	private function get_iam_policy(): string
-	{
-		$bucket = strtok(R2_UPLOADS_BUCKET, '/');
-
-		$path = null;
-
-		if (strpos(R2_UPLOADS_BUCKET, '/')) {
-			$path = str_replace(strtok(R2_UPLOADS_BUCKET, '/') . '/', '', R2_UPLOADS_BUCKET);
-		}
-
-		return '{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "Stmt1392016154000",
-      "Effect": "Allow",
-      "Action": [
-        "s3:AbortMultipartUpload",
-        "s3:DeleteObject",
-        "s3:GetBucketAcl",
-        "s3:GetBucketLocation",
-        "s3:GetBucketPolicy",
-        "s3:GetObject",
-        "s3:GetObjectAcl",
-        "s3:ListBucket",
-        "s3:ListBucketMultipartUploads",
-        "s3:ListMultipartUploadParts",
-        "s3:PutObject",
-        "s3:PutObjectAcl"
-      ],
-      "Resource": [
-        "arn:aws:s3:::' . R2_UPLOADS_BUCKET . '/*"
-      ]
-    },
-    {
-      "Sid": "AllowRootAndHomeListingOfBucket",
-      "Action": ["s3:ListBucket"],
-      "Effect": "Allow",
-      "Resource": ["arn:aws:s3:::' . $bucket . '"],
-      "Condition":{"StringLike":{"s3:prefix":["' . ($path ? $path . '/' : '') . '*"]}}
-    }
-  ]
-}';
-	}
-
-	/**
-	 * Create AWS IAM Policy that S3 Uploads requires
-	 *
-	 * It's typically not a good idea to use access keys that have full access to your S3 account,
-	 * as if the keys are compromised through the WordPress site somehow, you don't
-	 * want to give full control via those keys.
-	 *
-	 * @subcommand generate-iam-policy
-	 */
-	public function generate_iam_policy()
-	{
-		WP_Cli::print_value($this->get_iam_policy());
 	}
 
 	/**
@@ -268,21 +209,21 @@ class WP_CLI_Command extends \WP_CLI_Command
 	}
 
 	/**
-	 * Enable the auto-rewriting of media links to S3
+	 * Enable the auto-rewriting of media links to R2
 	 */
 	public function enable()
 	{
-		update_option('s3_uploads_enabled', 'enabled');
+		update_option('r2_uploads_enabled', 'enabled');
 
 		WP_CLI::success('Media URL rewriting enabled.');
 	}
 
 	/**
-	 * Disable the auto-rewriting of media links to S3
+	 * Disable the auto-rewriting of media links to R2
 	 */
 	public function disable()
 	{
-		delete_option('s3_uploads_enabled');
+		delete_option('r2_uploads_enabled');
 
 		WP_CLI::success('Media URL rewriting disabled.');
 	}
@@ -336,7 +277,7 @@ class WP_CLI_Command extends \WP_CLI_Command
 	}
 
 	/**
-	 * Verify that the required constants for the S3 connections are set.
+	 * Verify that the required constants for the R2 connections are set.
 	 *
 	 * @return bool true if all constants are set, else false.
 	 */
