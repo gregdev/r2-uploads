@@ -1,13 +1,13 @@
 <?php
 
-namespace S3_Uploads;
+namespace R2_Uploads;
 
 use Imagick;
 use WP_Error;
 use WP_Image_Editor_Imagick;
 
-class Image_Editor_Imagick extends WP_Image_Editor_Imagick {
-
+class Image_Editor_Imagick extends WP_Image_Editor_Imagick
+{
 	/**
 	 * @var ?Imagick
 	 */
@@ -42,25 +42,26 @@ class Image_Editor_Imagick extends WP_Image_Editor_Imagick {
 	 *
 	 * @return true|WP_Error True if loaded; WP_Error on failure.
 	 */
-	public function load() {
-		if ( $this->image instanceof Imagick ) {
+	public function load()
+	{
+		if ($this->image instanceof Imagick) {
 			return true;
 		}
 
-		if ( $this->file && ! is_file( $this->file ) && ! preg_match( '|^https?://|', $this->file ) ) {
-			return new WP_Error( 'error_loading_image', __( 'File doesn&#8217;t exist?' ), $this->file );
+		if ($this->file && !is_file($this->file) && !preg_match('|^https?://|', $this->file)) {
+			return new WP_Error('error_loading_image', __('File doesn&#8217;t exist?'), $this->file);
 		}
 
 		$upload_dir = wp_upload_dir();
 
-		if ( ! $this->file || strpos( $this->file, $upload_dir['basedir'] ) !== 0 ) {
+		if (!$this->file || strpos($this->file, $upload_dir['basedir']) !== 0) {
 			return parent::load();
 		}
 
-		$temp_filename = tempnam( get_temp_dir(), 's3-uploads' );
+		$temp_filename = tempnam(get_temp_dir(), 's3-uploads');
 		$this->temp_files_to_cleanup[] = $temp_filename;
 
-		copy( $this->file, $temp_filename );
+		copy($this->file, $temp_filename);
 		$this->remote_filename = $this->file;
 		$this->file = $temp_filename;
 
@@ -80,69 +81,67 @@ class Image_Editor_Imagick extends WP_Image_Editor_Imagick {
 	 * @param ?string $mime_type
 	 * @return WP_Error|array{path: string, file: string, width: int, height: int, mime-type: string}
 	 */
-	protected function _save( $image, $filename = null, $mime_type = null ) {
+	protected function _save($image, $filename = null, $mime_type = null)
+	{
 		/**
 		 * @var ?string $filename
 		 * @var string $extension
 		 * @var string $mime_type
 		 */
-		list( $filename, $extension, $mime_type ) = $this->get_output_format( $filename, $mime_type );
+		list($filename, $extension, $mime_type) = $this->get_output_format($filename, $mime_type);
 
-		if ( ! $filename ) {
-			$filename = $this->generate_filename( null, null, $extension );
+		if (!$filename) {
+			$filename = $this->generate_filename(null, null, $extension);
 		}
 
 		$upload_dir = wp_upload_dir();
 
-		if ( strpos( $filename, $upload_dir['basedir'] ) === 0 ) {
+		if (strpos($filename, $upload_dir['basedir']) === 0) {
 			/** @var false|string */
-			$temp_filename = tempnam( get_temp_dir(), 's3-uploads' );
+			$temp_filename = tempnam(get_temp_dir(), 's3-uploads');
 		} else {
 			$temp_filename = false;
 		}
 
-		/**
-		 * @var WP_Error|array{path: string, file: string, width: int, height: int, mime-type: string}
-		 */
-		$parent_call = parent::_save( $image, $temp_filename ?: $filename, $mime_type );
+		/** @var WP_Error|array{path: string, file: string, width: int, height: int, mime-type: string} */
+		$parent_call = parent::_save($image, $temp_filename ?: $filename, $mime_type);
 
-		if ( is_wp_error( $parent_call ) ) {
-			if ( $temp_filename ) {
-				unlink( $temp_filename );
+		if (is_wp_error($parent_call)) {
+			if ($temp_filename) {
+				unlink($temp_filename);
 			}
 
 			return $parent_call;
 		} else {
-			/**
-			 * @var array{path: string, file: string, width: int, height: int, mime-type: string} $save
-			 */
+			/** @var array{path: string, file: string, width: int, height: int, mime-type: string} $save */
 			$save = $parent_call;
 		}
 
-		$copy_result = copy( $save['path'], $filename );
+		$copy_result = copy($save['path'], $filename);
 
-		unlink( $save['path'] );
-		if ( $temp_filename ) {
-			unlink( $temp_filename );
+		unlink($save['path']);
+		if ($temp_filename) {
+			unlink($temp_filename);
 		}
 
-		if ( ! $copy_result ) {
-			return new WP_Error( 'unable-to-copy-to-s3', 'Unable to copy the temp image to S3' );
+		if (!$copy_result) {
+			return new WP_Error('unable-to-copy-to-s3', 'Unable to copy the temp image to R2');
 		}
 
 		$response = [
-			'path'      => $filename,
-			'file'      => wp_basename( apply_filters( 'image_make_intermediate_size', $filename ) ),
-			'width'     => $this->size['width'] ?? 0,
-			'height'    => $this->size['height'] ?? 0,
+			'path' => $filename,
+			'file' => wp_basename(apply_filters('image_make_intermediate_size', $filename)),
+			'width' => $this->size['width'] ?? 0,
+			'height' => $this->size['height'] ?? 0,
 			'mime-type' => $mime_type,
 		];
 
 		return $response;
 	}
 
-	public function __destruct() {
-		array_map( 'unlink', $this->temp_files_to_cleanup );
+	public function __destruct()
+	{
+		array_map('unlink', $this->temp_files_to_cleanup);
 		parent::__destruct();
 	}
 }

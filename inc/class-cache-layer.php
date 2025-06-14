@@ -1,13 +1,12 @@
 <?php
 
-namespace S3_Uploads;
+namespace R2_Uploads;
 
 /**
- * Class S3_Uploads_Cache_Layer.
+ * Class R2_Uploads_Cache_Layer.
  *
  * \Aws\CacheIntefrace implementation using WordPress object cache.
  */
-
 class Cache_Layer implements \Aws\CacheInterface, \Countable
 {
     /**

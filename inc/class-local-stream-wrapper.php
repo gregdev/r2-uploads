@@ -1,6 +1,6 @@
 <?php
 
-namespace S3_Uploads;
+namespace R2_Uploads;
 
 // phpcs:disable WordPress.NamingConventions.ValidVariableName.MemberNotSnakeCase
 // phpcs:disable WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid
@@ -14,7 +14,8 @@ namespace S3_Uploads;
  *
  * This is for the most part taken from Drupal, with some modifications.
  */
-class Local_Stream_Wrapper {
+class Local_Stream_Wrapper
+{
 	/**
 	 * Stream context resource.
 	 *
@@ -43,16 +44,19 @@ class Local_Stream_Wrapper {
 	 *
 	 * @return string String specifying the path.
 	 */
-	static function getDirectoryPath() : string {
+	static function getDirectoryPath(): string
+	{
 		$upload_dir = Plugin::get_instance()->get_original_upload_dir();
 		return $upload_dir['basedir'] . '/s3';
 	}
 
-	function setUri( string $uri ) {
+	function setUri(string $uri)
+	{
 		$this->uri = $uri;
 	}
 
-	function getUri() : string {
+	function getUri(): string
+	{
 		return $this->uri ?? '';
 	}
 
@@ -72,15 +76,16 @@ class Local_Stream_Wrapper {
 	 *   Returns a string representing a location suitable for writing of a file,
 	 *   or FALSE if unable to write to the file such as with read-only streams.
 	 */
-	protected function getTarget( $uri = null ) : string {
-		if ( ! isset( $uri ) ) {
+	protected function getTarget($uri = null): string
+	{
+		if (!isset($uri)) {
 			$uri = $this->uri ?: '';
 		}
 
-		list( $scheme, $target) = explode( '://', $uri, 2 );
+		list($scheme, $target) = explode('://', $uri, 2);
 
 		// Remove erroneous leading or trailing, forward-slashes and backslashes.
-		return trim( $target, '\/' );
+		return trim($target, '\/');
 	}
 
 	/**
@@ -90,38 +95,40 @@ class Local_Stream_Wrapper {
 	 * @param array{extensions?: string[], mimetypes: array<string,string>} $mapping
 	 * @return string
 	 */
-	static function getMimeType( string $uri, array $mapping = null ) : string {
-
+	static function getMimeType(string $uri, array $mapping = null): string
+	{
 		$extension = '';
-		$file_parts = explode( '.', basename( $uri ) );
+		$file_parts = explode('.', basename($uri));
 
 		// Remove the first part: a full filename should not match an extension.
-		array_shift( $file_parts );
+		array_shift($file_parts);
 
 		// Iterate over the file parts, trying to find a match.
 		// For my.awesome.image.jpeg, we try:
 		//   - jpeg
 		//   - image.jpeg, and
 		//   - awesome.image.jpeg
-		while ( $additional_part = array_pop( $file_parts ) ) {
-			$extension = strtolower( $additional_part . ( $extension ? '.' . $extension : '' ) );
-			if ( isset( $mapping['extensions'][ $extension ] ) ) {
-				return $mapping['mimetypes'][ $mapping['extensions'][ $extension ] ];
+		while ($additional_part = array_pop($file_parts)) {
+			$extension = strtolower($additional_part . ($extension ? '.' . $extension : ''));
+			if (isset($mapping['extensions'][$extension])) {
+				return $mapping['mimetypes'][$mapping['extensions'][$extension]];
 			}
 		}
 
 		return 'application/octet-stream';
 	}
 
-	function chmod( int $mode ) : bool {
-		$output = @chmod( $this->getLocalPath(), $mode ); // // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+	function chmod(int $mode): bool
+	{
+		$output = @chmod($this->getLocalPath(), $mode);  // // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		// We are modifying the underlying file here, so we have to clear the stat
 		// cache so that PHP understands that URI has changed too.
-		clearstatcache( true, $this->getLocalPath() );
+		clearstatcache(true, $this->getLocalPath());
 		return $output;
 	}
 
-	function realpath() : string {
+	function realpath(): string
+	{
 		return $this->getLocalPath();
 	}
 
@@ -138,16 +145,17 @@ class Local_Stream_Wrapper {
 	 *   path, as determined by the realpath() function. If $uri is set but not
 	 *   valid, returns FALSE.
 	 */
-	protected function getLocalPath( $uri = null ) {
-		if ( ! isset( $uri ) ) {
+	protected function getLocalPath($uri = null)
+	{
+		if (!isset($uri)) {
 			$uri = $this->uri;
 		}
-		$path = $this->getDirectoryPath() . '/' . $this->getTarget( $uri );
+		$path = $this->getDirectoryPath() . '/' . $this->getTarget($uri);
 		$realpath = $path;
 
-		$directory = realpath( $this->getDirectoryPath() );
+		$directory = realpath($this->getDirectoryPath());
 
-		if ( ! $directory || strpos( $realpath, $directory ) !== 0 ) {
+		if (!$directory || strpos($realpath, $directory) !== 0) {
 			return '';
 		}
 		return $realpath;
@@ -171,12 +179,13 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-open.php
 	 */
-	public function stream_open( $uri, $mode, $options, &$opened_path ) {
+	public function stream_open($uri, $mode, $options, &$opened_path)
+	{
 		$this->uri = $uri;
 		$path = $this->getLocalPath();
-		$this->handle = ( $options & STREAM_REPORT_ERRORS ) ? fopen( $path, $mode ) : @fopen( $path, $mode );
+		$this->handle = ($options & STREAM_REPORT_ERRORS) ? fopen($path, $mode) : @fopen($path, $mode);
 
-		if ( (bool) $this->handle && $options & STREAM_USE_PATH ) {
+		if ((bool) $this->handle && $options & STREAM_USE_PATH) {
 			$opened_path = $path;
 		}
 
@@ -191,7 +200,8 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-metadata.php
 	 */
-	public function stream_metadata() {
+	public function stream_metadata()
+	{
 		return true;
 	}
 
@@ -211,9 +221,10 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-lock.php
 	 */
-	public function stream_lock( $operation ) {
-		if ( in_array( $operation, [ LOCK_SH, LOCK_EX, LOCK_UN, LOCK_NB ] ) && $this->handle ) {
-			return flock( $this->handle, $operation );
+	public function stream_lock($operation)
+	{
+		if (in_array($operation, [LOCK_SH, LOCK_EX, LOCK_UN, LOCK_NB]) && $this->handle) {
+			return flock($this->handle, $operation);
 		}
 
 		return true;
@@ -230,11 +241,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-read.php
 	 */
-	public function stream_read( $count ) {
-		if ( ! $this->handle ) {
+	public function stream_read($count)
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		return fread( $this->handle, $count );
+		return fread($this->handle, $count);
 	}
 
 	/**
@@ -248,11 +260,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-write.php
 	 */
-	public function stream_write( $data ) {
-		if ( ! $this->handle ) {
+	public function stream_write($data)
+	{
+		if (!$this->handle) {
 			return 0;
 		}
-		return fwrite( $this->handle, $data );
+		return fwrite($this->handle, $data);
 	}
 
 	/**
@@ -263,11 +276,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-eof.php
 	 */
-	public function stream_eof() {
-		if ( ! $this->handle ) {
+	public function stream_eof()
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		return feof( $this->handle );
+		return feof($this->handle);
 	}
 
 	/**
@@ -283,13 +297,14 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-seek.php
 	 */
-	public function stream_seek( $offset, $whence ) {
-		if ( ! $this->handle ) {
+	public function stream_seek($offset, $whence)
+	{
+		if (!$this->handle) {
 			return false;
 		}
 		// fseek returns 0 on success and -1 on a failure.
 		// stream_seek   1 on success and  0 on a failure.
-		return ! fseek( $this->handle, $offset, $whence );
+		return !fseek($this->handle, $offset, $whence);
 	}
 
 	/**
@@ -300,15 +315,16 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-flush.php
 	 */
-	public function stream_flush() {
-		if ( ! $this->handle ) {
+	public function stream_flush()
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		$result = fflush( $this->handle );
+		$result = fflush($this->handle);
 
 		$params = [
-			'Bucket' => S3_UPLOADS_BUCKET,
-			'Key' => trim( str_replace( S3_UPLOADS_BUCKET, '', $this->getTarget() ), '/' ),
+			'Bucket' => R2_UPLOADS_BUCKET,
+			'Key' => trim(str_replace(R2_UPLOADS_BUCKET, '', $this->getTarget()), '/'),
 		];
 
 		/**
@@ -316,7 +332,7 @@ class Local_Stream_Wrapper {
 		 *
 		 * @param array  $params S3Client::putObject parameters.
 		 */
-		do_action( 's3_uploads_putObject', $params );
+		do_action('s3_uploads_putObject', $params);
 
 		return $result;
 	}
@@ -329,11 +345,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-tell.php
 	 */
-	public function stream_tell() {
-		if ( ! $this->handle ) {
+	public function stream_tell()
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		return ftell( $this->handle );
+		return ftell($this->handle);
 	}
 
 	/**
@@ -345,11 +362,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-stat.php
 	 */
-	public function stream_stat() {
-		if ( ! $this->handle ) {
+	public function stream_stat()
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		return fstat( $this->handle );
+		return fstat($this->handle);
 	}
 
 	/**
@@ -360,12 +378,13 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-close.php
 	 */
-	public function stream_close() {
-		if ( ! $this->handle ) {
+	public function stream_close()
+	{
+		if (!$this->handle) {
 			return false;
 		}
 		$resource = $this->handle;
-		return fclose( $resource );
+		return fclose($resource);
 	}
 
 	/**
@@ -380,7 +399,8 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.stream-cast.php
 	 */
-	public function stream_cast( $cast_as ) {
+	public function stream_cast($cast_as)
+	{
 		return false;
 	}
 
@@ -395,9 +415,10 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.unlink.php
 	 */
-	public function unlink( $uri ) {
+	public function unlink($uri)
+	{
 		$this->uri = $uri;
-		return unlink( $this->getLocalPath() );
+		return unlink($this->getLocalPath());
 	}
 
 	/**
@@ -413,8 +434,9 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.rename.php
 	 */
-	public function rename( $from_uri, $to_uri ) {
-		return rename( $this->getLocalPath( $from_uri ), $this->getLocalPath( $to_uri ) );
+	public function rename($from_uri, $to_uri)
+	{
+		return rename($this->getLocalPath($from_uri), $this->getLocalPath($to_uri));
 	}
 
 	/**
@@ -432,20 +454,21 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.mkdir.php
 	 */
-	public function mkdir( $uri, $mode, $options ) {
+	public function mkdir($uri, $mode, $options)
+	{
 		$this->uri = $uri;
-		$recursive = (bool) ( $options & STREAM_MKDIR_RECURSIVE );
-		if ( $recursive ) {
+		$recursive = (bool) ($options & STREAM_MKDIR_RECURSIVE);
+		if ($recursive) {
 			// $this->getLocalPath() fails if $uri has multiple levels of directories
 			// that do not yet exist.
-			$localpath = $this->getDirectoryPath() . '/' . $this->getTarget( $uri );
+			$localpath = $this->getDirectoryPath() . '/' . $this->getTarget($uri);
 		} else {
-			$localpath = $this->getLocalPath( $uri );
+			$localpath = $this->getLocalPath($uri);
 		}
-		if ( $options & STREAM_REPORT_ERRORS ) {
-			return mkdir( $localpath, $mode, $recursive );
+		if ($options & STREAM_REPORT_ERRORS) {
+			return mkdir($localpath, $mode, $recursive);
 		} else {
-			return @mkdir( $localpath, $mode, $recursive );
+			return @mkdir($localpath, $mode, $recursive);
 		}
 	}
 
@@ -462,12 +485,13 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.rmdir.php
 	 */
-	public function rmdir( $uri, $options ) {
+	public function rmdir($uri, $options)
+	{
 		$this->uri = $uri;
-		if ( $options & STREAM_REPORT_ERRORS ) {
-			return rmdir( $this->getLocalPath() );
+		if ($options & STREAM_REPORT_ERRORS) {
+			return rmdir($this->getLocalPath());
 		} else {
-			return @rmdir( $this->getLocalPath() );
+			return @rmdir($this->getLocalPath());
 		}
 	}
 
@@ -485,15 +509,16 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.url-stat.php
 	 */
-	public function url_stat( $uri, $flags ) {
+	public function url_stat($uri, $flags)
+	{
 		$this->uri = $uri;
 		$path = $this->getLocalPath();
 		// Suppress warnings if requested or if the file or directory does not
 		// exist. This is consistent with PHP's plain filesystem stream wrapper.
-		if ( $flags & STREAM_URL_STAT_QUIET || ! file_exists( $path ) ) {
-			return @stat( $path );
+		if ($flags & STREAM_URL_STAT_QUIET || !file_exists($path)) {
+			return @stat($path);
 		} else {
-			return stat( $path );
+			return stat($path);
 		}
 	}
 
@@ -510,9 +535,10 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.dir-opendir.php
 	 */
-	public function dir_opendir( $uri, $options ) {
+	public function dir_opendir($uri, $options)
+	{
 		$this->uri = $uri;
-		$this->handle = opendir( pathinfo($this->getLocalPath(), PATHINFO_DIRNAME) );
+		$this->handle = opendir(pathinfo($this->getLocalPath(), PATHINFO_DIRNAME));
 
 		return (bool) $this->handle;
 	}
@@ -525,11 +551,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.dir-readdir.php
 	 */
-	public function dir_readdir() {
-		if ( ! $this->handle ) {
+	public function dir_readdir()
+	{
+		if (!$this->handle) {
 			return '';
 		}
-		return readdir( $this->handle );
+		return readdir($this->handle);
 	}
 
 	/**
@@ -540,11 +567,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.dir-rewinddir.php
 	 */
-	public function dir_rewinddir() {
-		if ( ! $this->handle ) {
+	public function dir_rewinddir()
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		rewinddir( $this->handle );
+		rewinddir($this->handle);
 		// We do not really have a way to signal a failure as rewinddir() does not
 		// have a return value and there is no way to read a directory handler
 		// without advancing to the next file.
@@ -559,11 +587,12 @@ class Local_Stream_Wrapper {
 	 *
 	 * @see http://php.net/manual/streamwrapper.dir-closedir.php
 	 */
-	public function dir_closedir() {
-		if ( ! $this->handle ) {
+	public function dir_closedir()
+	{
+		if (!$this->handle) {
 			return false;
 		}
-		closedir( $this->handle );
+		closedir($this->handle);
 		// We do not really have a way to signal a failure as closedir() does not
 		// have a return value.
 		return true;

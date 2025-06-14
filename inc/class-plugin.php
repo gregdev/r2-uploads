@@ -1,56 +1,51 @@
 <?php
 
-namespace S3_Uploads;
+namespace R2_Uploads;
 
+use R2_Uploads\Local_Stream_Wrapper;
 use Aws;
 use Exception;
 use WP_Error;
-use S3_Uploads\Local_Stream_Wrapper;
 
 /**
  * @psalm-consistent-constructor
  */
-class Plugin {
-
+class Plugin
+{
 	/**
-	 * The S3 bucket with path.
+	 * The R2 bucket with path.
 	 *
 	 * @var string
 	 */
 	private $bucket;
 
 	/**
-	 * The URL that resolves to the S3 bucket.
+	 * The URL that resolves to the R2 bucket.
 	 *
 	 * @var ?string
 	 */
 	private $bucket_url;
 
 	/**
-	 * AWS IAM access key used for S3 Access.
+	 * AWS IAM access key used for R2 Access.
 	 *
 	 * @var ?string
 	 */
 	private $key;
 
 	/**
-	 * AWS IAM access key secret used for S3 Access.
+	 * AWS IAM access key secret used for R2 Access.
 	 *
 	 * @var ?string
 	 */
 	private $secret;
 
 	/**
-	 * Original wp_upload_dir() before being replaced by S3 Uploads.
+	 * Original wp_upload_dir() before being replaced by R2 Uploads.
 	 *
 	 * @var ?array{path: string, basedir: string, baseurl: string, url: string}
 	 */
 	public $original_upload_dir;
-
-	/**
-	 * @var ?string
-	 */
-	private $region = null;
 
 	/**
 	 * @var ?Aws\S3\S3Client
@@ -63,18 +58,16 @@ class Plugin {
 	private static $instance = null;
 
 	/**
-	 *
 	 * @return static
 	 */
-	public static function get_instance() {
-
-		if ( ! self::$instance ) {
+	public static function get_instance()
+	{
+		if (!self::$instance) {
 			self::$instance = new static(
-				S3_UPLOADS_BUCKET,
-				defined( 'S3_UPLOADS_KEY' ) ? S3_UPLOADS_KEY : null,
-				defined( 'S3_UPLOADS_SECRET' ) ? S3_UPLOADS_SECRET : null,
-				defined( 'S3_UPLOADS_BUCKET_URL' ) ? S3_UPLOADS_BUCKET_URL : null,
-				S3_UPLOADS_REGION
+				R2_UPLOADS_BUCKET,
+				defined('R2_UPLOADS_KEY') ? R2_UPLOADS_KEY : null,
+				defined('R2_UPLOADS_SECRET') ? R2_UPLOADS_SECRET : null,
+				defined('R2_UPLOADS_BUCKET_URL') ? R2_UPLOADS_BUCKET_URL : null,
 			);
 		}
 
@@ -88,77 +81,79 @@ class Plugin {
 	 * @param ?string $key
 	 * @param ?string $secret
 	 * @param ?string $bucket_url
-	 * @param ?string $region
 	 */
-	public function __construct( $bucket, $key, $secret, $bucket_url = null, $region = null ) {
-		$this->bucket     = $bucket;
-		$this->key        = $key;
-		$this->secret     = $secret;
+	public function __construct($bucket, $key, $secret, $bucket_url = null)
+	{
+		$this->bucket = $bucket;
+		$this->key = $key;
+		$this->secret = $secret;
 		$this->bucket_url = $bucket_url;
-		$this->region     = $region;
 	}
 
 	/**
-	 * Setup the hooks, urls filtering etc for S3 Uploads
+	 * Setup the hooks, urls filtering etc for R2 Uploads
 	 */
-	public function setup() {
+	public function setup()
+	{
 		$this->register_stream_wrapper();
 
-		add_filter( 'upload_dir', [ $this, 'filter_upload_dir' ] );
-		add_filter( 'wp_image_editors', [ $this, 'filter_editors' ], 9 );
-		add_action( 'delete_attachment', [ $this, 'delete_attachment_files' ] );
-		add_filter( 'wp_read_image_metadata', [ $this, 'wp_filter_read_image_metadata' ], 10, 2 );
-		add_filter( 'wp_resource_hints', [ $this, 'wp_filter_resource_hints' ], 10, 2 );
+		add_filter('upload_dir', [$this, 'filter_upload_dir']);
+		add_filter('wp_image_editors', [$this, 'filter_editors'], 9);
+		add_action('delete_attachment', [$this, 'delete_attachment_files']);
+		add_filter('wp_read_image_metadata', [$this, 'wp_filter_read_image_metadata'], 10, 2);
+		add_filter('wp_resource_hints', [$this, 'wp_filter_resource_hints'], 10, 2);
 
-		add_action( 'wp_handle_sideload_prefilter', [ $this, 'filter_sideload_move_temp_file_to_s3' ] );
-		add_filter( 'wp_generate_attachment_metadata', [ $this, 'set_filesize_in_attachment_meta' ], 10, 2 );
+		add_action('wp_handle_sideload_prefilter', [$this, 'filter_sideload_move_temp_file_to_r2']);
+		add_filter('wp_generate_attachment_metadata', [$this, 'set_filesize_in_attachment_meta'], 10, 2);
 
-		add_action( 'wp_get_attachment_url', [ $this, 'add_s3_signed_params_to_attachment_url' ], 10, 2 );
-		add_action( 'wp_get_attachment_image_src', [ $this, 'add_s3_signed_params_to_attachment_image_src' ], 10, 2 );
-		add_action( 'wp_calculate_image_srcset', [ $this, 'add_s3_signed_params_to_attachment_image_srcset' ], 10, 5 );
+		add_action('wp_get_attachment_url', [$this, 'add_r2_signed_params_to_attachment_url'], 10, 2);
+		add_action('wp_get_attachment_image_src', [$this, 'add_r2_signed_params_to_attachment_image_src'], 10, 2);
+		add_action('wp_calculate_image_srcset', [$this, 'add_r2_signed_params_to_attachment_image_srcset'], 10, 5);
 
-		add_filter( 'wp_generate_attachment_metadata', [ $this, 'set_attachment_private_on_generate_attachment_metadata' ], 10, 2 );
+		add_filter('wp_generate_attachment_metadata', [$this, 'set_attachment_private_on_generate_attachment_metadata'], 10, 2);
 
-		add_filter( 'pre_wp_unique_filename_file_list', [ $this, 'get_files_for_unique_filename_file_list' ], 10, 3 );
+		add_filter('pre_wp_unique_filename_file_list', [$this, 'get_files_for_unique_filename_file_list'], 10, 3);
 	}
 
 	/**
-	 * Tear down the hooks, url filtering etc for S3 Uploads
+	 * Tear down the hooks, url filtering etc for R2 Uploads
 	 */
-	public function tear_down() {
+	public function tear_down()
+	{
+		stream_wrapper_unregister('s3');
+		remove_filter('upload_dir', [$this, 'filter_upload_dir']);
+		remove_filter('wp_image_editors', [$this, 'filter_editors'], 9);
+		remove_filter('wp_handle_sideload_prefilter', [$this, 'filter_sideload_move_temp_file_to_r2']);
+		remove_filter('wp_generate_attachment_metadata', [$this, 'set_filesize_in_attachment_meta']);
 
-		stream_wrapper_unregister( 's3' );
-		remove_filter( 'upload_dir', [ $this, 'filter_upload_dir' ] );
-		remove_filter( 'wp_image_editors', [ $this, 'filter_editors' ], 9 );
-		remove_filter( 'wp_handle_sideload_prefilter', [ $this, 'filter_sideload_move_temp_file_to_s3' ] );
-		remove_filter( 'wp_generate_attachment_metadata', [ $this, 'set_filesize_in_attachment_meta' ] );
+		remove_action('wp_get_attachment_url', [$this, 'add_r2_signed_params_to_attachment_url']);
+		remove_action('wp_get_attachment_image_src', [$this, 'add_r2_signed_params_to_attachment_image_src']);
+		remove_action('wp_calculate_image_srcset', [$this, 'add_r2_signed_params_to_attachment_image_srcset']);
 
-		remove_action( 'wp_get_attachment_url', [ $this, 'add_s3_signed_params_to_attachment_url' ] );
-		remove_action( 'wp_get_attachment_image_src', [ $this, 'add_s3_signed_params_to_attachment_image_src' ] );
-		remove_action( 'wp_calculate_image_srcset', [ $this, 'add_s3_signed_params_to_attachment_image_srcset' ] );
-
-		remove_filter( 'wp_generate_attachment_metadata', [ $this, 'set_attachment_private_on_generate_attachment_metadata' ] );
+		remove_filter('wp_generate_attachment_metadata', [$this, 'set_attachment_private_on_generate_attachment_metadata']);
 	}
 
 	/**
-	 * Register the stream wrapper for s3
+	 * Register the stream wrapper for R2
 	 */
-	public function register_stream_wrapper() {
-		if ( defined( 'S3_UPLOADS_USE_LOCAL' ) && S3_UPLOADS_USE_LOCAL ) {
-			stream_wrapper_register( 's3', Local_Stream_Wrapper::class, STREAM_IS_URL );
+	public function register_stream_wrapper()
+	{
+		if (defined('R2_UPLOADS_USE_LOCAL') && R2_UPLOADS_USE_LOCAL) {
+			stream_wrapper_register('s3', Local_Stream_Wrapper::class, STREAM_IS_URL);
 		} else {
-			Stream_Wrapper::register( $this, 's3', new Cache_Layer() );
-			$acl = defined( 'S3_UPLOADS_OBJECT_ACL' ) ? S3_UPLOADS_OBJECT_ACL : 'public-read';
-			stream_context_set_option( stream_context_get_default(), 's3', 'ACL', $acl );
+			Stream_Wrapper::register($this, 's3', new Cache_Layer());
+			$acl = defined('R2_UPLOADS_OBJECT_ACL') ? R2_UPLOADS_OBJECT_ACL : 'public-read';
+			stream_context_set_option(stream_context_get_default(), 's3', 'ACL', $acl);
 		}
 
-		stream_context_set_option( stream_context_get_default(), 's3', 'seekable', true );
+		stream_context_set_option(stream_context_get_default(), 's3', 'seekable', true);
 	}
 
 	/**
 	 * Get the s3:// path for the bucket.
 	 */
-	public function get_s3_path() : string {
+	public function get_s3_path(): string
+	{
 		return 's3://' . $this->bucket;
 	}
 
@@ -168,23 +163,21 @@ class Plugin {
 	 * @param array{path: string, basedir: string, baseurl: string, url: string} $dirs
 	 * @return array{path: string, basedir: string, baseurl: string, url: string}
 	 */
-	public function filter_upload_dir( array $dirs ) : array {
-
+	public function filter_upload_dir(array $dirs): array
+	{
 		$this->original_upload_dir = $dirs;
 		$s3_path = $this->get_s3_path();
 
-		$dirs['path']    = str_replace( WP_CONTENT_DIR, $s3_path, $dirs['path'] );
-		$dirs['basedir'] = str_replace( WP_CONTENT_DIR, $s3_path, $dirs['basedir'] );
+		$dirs['path'] = str_replace(WP_CONTENT_DIR, $s3_path, $dirs['path']);
+		$dirs['basedir'] = str_replace(WP_CONTENT_DIR, $s3_path, $dirs['basedir']);
 
-		if ( ! defined( 'S3_UPLOADS_DISABLE_REPLACE_UPLOAD_URL' ) || ! S3_UPLOADS_DISABLE_REPLACE_UPLOAD_URL ) {
-
-			if ( defined( 'S3_UPLOADS_USE_LOCAL' ) && S3_UPLOADS_USE_LOCAL ) {
-				$dirs['url']     = str_replace( $s3_path, $dirs['baseurl'] . '/s3/' . $this->bucket, $dirs['path'] );
-				$dirs['baseurl'] = str_replace( $s3_path, $dirs['baseurl'] . '/s3/' . $this->bucket, $dirs['basedir'] );
-
+		if (!defined('R2_UPLOADS_DISABLE_REPLACE_UPLOAD_URL') || !R2_UPLOADS_DISABLE_REPLACE_UPLOAD_URL) {
+			if (defined('R2_UPLOADS_USE_LOCAL') && R2_UPLOADS_USE_LOCAL) {
+				$dirs['url'] = str_replace($s3_path, $dirs['baseurl'] . '/s3/' . $this->bucket, $dirs['path']);
+				$dirs['baseurl'] = str_replace($s3_path, $dirs['baseurl'] . '/s3/' . $this->bucket, $dirs['basedir']);
 			} else {
-				$dirs['url']     = str_replace( $s3_path, $this->get_s3_url(), $dirs['path'] );
-				$dirs['baseurl'] = str_replace( $s3_path, $this->get_s3_url(), $dirs['basedir'] );
+				$dirs['url'] = str_replace($s3_path, $this->get_s3_url(), $dirs['path']);
+				$dirs['baseurl'] = str_replace($s3_path, $this->get_s3_url(), $dirs['basedir']);
 			}
 		}
 
@@ -203,21 +196,22 @@ class Plugin {
 	 *
 	 * @param int $post_id
 	 */
-	public function delete_attachment_files( int $post_id ) {
-		$meta = wp_get_attachment_metadata( $post_id );
-		$file = get_attached_file( $post_id );
-		if ( ! $file ) {
+	public function delete_attachment_files(int $post_id)
+	{
+		$meta = wp_get_attachment_metadata($post_id);
+		$file = get_attached_file($post_id);
+		if (!$file) {
 			return;
 		}
 
-		if ( ! empty( $meta['sizes'] ) ) {
-			foreach ( $meta['sizes'] as $sizeinfo ) {
-				$intermediate_file = str_replace( basename( $file ), $sizeinfo['file'], $file );
-				wp_delete_file( $intermediate_file );
+		if (!empty($meta['sizes'])) {
+			foreach ($meta['sizes'] as $sizeinfo) {
+				$intermediate_file = str_replace(basename($file), $sizeinfo['file'], $file);
+				wp_delete_file($intermediate_file);
 			}
 		}
 
-		wp_delete_file( $file );
+		wp_delete_file($file);
 	}
 
 	/**
@@ -225,33 +219,26 @@ class Plugin {
 	 *
 	 * @return string
 	 */
-	public function get_s3_url() : string {
-		if ( $this->bucket_url ) {
+	public function get_s3_url(): string
+	{
+		if ($this->bucket_url) {
 			return $this->bucket_url;
 		}
 
-		$bucket = strtok( $this->bucket, '/' );
-		$path   = substr( $this->bucket, strlen( $bucket ) );
+		$bucket = strtok($this->bucket, '/');
+		$path = substr($this->bucket, strlen($bucket));
 
-		return apply_filters( 's3_uploads_bucket_url', 'https://' . $bucket . '.s3.amazonaws.com' . $path );
+		return apply_filters('R2_UPLOADS_BUCKET_url', 'https://' . $bucket . '.s3.amazonaws.com' . $path);
 	}
 
 	/**
-	 * Get the S3 bucket name
+	 * Get the R2 bucket name
 	 *
 	 * @return string
 	 */
-	public function get_s3_bucket() : string {
-		return strtok( $this->bucket, '/' );
-	}
-
-	/**
-	 * Get the region of the S3 bucket.
-	 *
-	 * @return string
-	 */
-	public function get_s3_bucket_region() : ?string {
-		return $this->region;
+	public function get_r2_bucket(): string
+	{
+		return strtok($this->bucket, '/');
 	}
 
 	/**
@@ -259,50 +246,49 @@ class Plugin {
 	 *
 	 * @return array{path: string, basedir: string, baseurl: string, url: string}
 	 */
-	public function get_original_upload_dir() : array {
-
-		if ( empty( $this->original_upload_dir ) ) {
+	public function get_original_upload_dir(): array
+	{
+		if (empty($this->original_upload_dir)) {
 			wp_upload_dir();
 		}
 
-		/**
-		 * @var array{path: string, basedir: string, baseurl: string, url: string}
-		 */
+		/** @var array{path: string, basedir: string, baseurl: string, url: string} */
 		$upload_dir = $this->original_upload_dir;
 		return $upload_dir;
 	}
 
 	/**
-	 * Reverse a file url in the uploads directory to the params needed for S3.
+	 * Reverse a file url in the uploads directory to the params needed for R2.
 	 *
 	 * @param string $url
 	 * @return array{bucket: string, key: string, query: string|null}|null
 	 */
-	public function get_s3_location_for_url( string $url ) : ?array {
-		$s3_url = 'https://' . $this->get_s3_bucket() . '.s3.amazonaws.com/';
-		if ( strpos( $url, $s3_url ) === 0 ) {
-			$parsed = wp_parse_url( $url );
+	public function get_s3_location_for_url(string $url): ?array
+	{
+		$s3_url = 'https://' . $this->get_r2_bucket() . '.s3.amazonaws.com/';
+		if (strpos($url, $s3_url) === 0) {
+			$parsed = wp_parse_url($url);
 			return [
-				'bucket' => $this->get_s3_bucket(),
-				'key'    => isset( $parsed['path'] ) ? ltrim( $parsed['path'], '/' ) : '',
-				'query'  => $parsed['query'] ?? null,
+				'bucket' => $this->get_r2_bucket(),
+				'key' => isset($parsed['path']) ? ltrim($parsed['path'], '/') : '',
+				'query' => $parsed['query'] ?? null,
 			];
 		}
 		$upload_dir = wp_upload_dir();
 
-		if ( strpos( $url, $upload_dir['baseurl'] ) === false ) {
+		if (strpos($url, $upload_dir['baseurl']) === false) {
 			return null;
 		}
 
-		$path = str_replace( $upload_dir['baseurl'], $upload_dir['basedir'], $url );
-		$parsed = wp_parse_url( $path );
-		if ( ! isset( $parsed['host'] ) || ! isset( $parsed['path'] ) ) {
+		$path = str_replace($upload_dir['baseurl'], $upload_dir['basedir'], $url);
+		$parsed = wp_parse_url($path);
+		if (!isset($parsed['host']) || !isset($parsed['path'])) {
 			return null;
 		}
 		return [
 			'bucket' => $parsed['host'],
-			'key'    => ltrim( $parsed['path'], '/' ),
-			'query'  => $parsed['query'] ?? null,
+			'key' => ltrim($parsed['path'], '/'),
+			'query' => $parsed['query'] ?? null,
 		];
 	}
 
@@ -312,23 +298,24 @@ class Plugin {
 	 * @param string $url
 	 * @return array{key: string, bucket: string}
 	 */
-	public function get_s3_location_for_path( string $path ) : ?array {
-		$parsed = wp_parse_url( $path );
-		if ( ! isset( $parsed['path'] ) || ! isset( $parsed['host'] ) || ! isset( $parsed['scheme'] ) || $parsed['scheme'] !== 's3' ) {
+	public function get_s3_location_for_path(string $path): ?array
+	{
+		$parsed = wp_parse_url($path);
+		if (!isset($parsed['path']) || !isset($parsed['host']) || !isset($parsed['scheme']) || $parsed['scheme'] !== 's3') {
 			return null;
 		}
 		return [
 			'bucket' => $parsed['host'],
-			'key'    => ltrim( $parsed['path'], '/' ),
+			'key' => ltrim($parsed['path'], '/'),
 		];
 	}
 
 	/**
 	 * @return Aws\S3\S3Client
 	 */
-	public function s3() : Aws\S3\S3Client {
-
-		if ( ! empty( $this->s3 ) ) {
+	public function s3(): Aws\S3\S3Client
+	{
+		if (!empty($this->s3)) {
 			return $this->s3;
 		}
 
@@ -341,52 +328,52 @@ class Plugin {
 	 *
 	 * @return Aws\Sdk
 	 */
-	public function get_aws_sdk() : Aws\Sdk {
+	public function get_aws_sdk(): Aws\Sdk
+	{
 		/** @var null|Aws\Sdk */
-		$sdk = apply_filters( 's3_uploads_aws_sdk', null, $this );
-		if ( $sdk ) {
+		$sdk = apply_filters('s3_uploads_aws_sdk', null, $this);
+		if ($sdk) {
 			return $sdk;
 		}
 
-		$params = [ 'version' => 'latest' ];
+		$params = ['version' => 'latest'];
 
-		if ( $this->key && $this->secret ) {
+		if ($this->key && $this->secret) {
 			$params['credentials']['key'] = $this->key;
 			$params['credentials']['secret'] = $this->secret;
 		}
 
-		if ( $this->region ) {
-			$params['signature'] = 'v4';
-			$params['region'] = $this->region;
-		}
+		$params['signature'] = 'v4';
 
-		if ( defined( 'WP_PROXY_HOST' ) && defined( 'WP_PROXY_PORT' ) ) {
-			$proxy_auth    = '';
+		if (defined('WP_PROXY_HOST') && defined('WP_PROXY_PORT')) {
+			$proxy_auth = '';
 			$proxy_address = WP_PROXY_HOST . ':' . WP_PROXY_PORT;
 
-			if ( defined( 'WP_PROXY_USERNAME' ) && defined( 'WP_PROXY_PASSWORD' ) ) {
+			if (defined('WP_PROXY_USERNAME') && defined('WP_PROXY_PASSWORD')) {
 				$proxy_auth = WP_PROXY_USERNAME . ':' . WP_PROXY_PASSWORD . '@';
 			}
 
 			$params['request.options']['proxy'] = $proxy_auth . $proxy_address;
 		}
 
-		$params = apply_filters( 's3_uploads_s3_client_params', $params );
+		$params = apply_filters('r2_uploads_r2_client_params', $params);
 
-		$sdk = new Aws\Sdk( $params );
+		$sdk = new Aws\Sdk($params);
 		return $sdk;
 	}
 
-	public function filter_editors( array $editors ) : array {
-		$position = array_search( 'WP_Image_Editor_Imagick', $editors );
-		if ( $position !== false ) {
-			unset( $editors[ $position ] );
+	public function filter_editors(array $editors): array
+	{
+		$position = array_search('WP_Image_Editor_Imagick', $editors);
+		if ($position !== false) {
+			unset($editors[$position]);
 		}
 
-		array_unshift( $editors, __NAMESPACE__ . '\\Image_Editor_Imagick' );
+		array_unshift($editors, __NAMESPACE__ . '\Image_Editor_Imagick');
 
 		return $editors;
 	}
+
 	/**
 	 * Copy the file from /tmp to an s3 dir so handle_sideload doesn't fail due to
 	 * trying to do a rename() on the file cross streams. This is somewhat of a hack
@@ -395,12 +382,13 @@ class Plugin {
 	 * @param array{tmp_name: string} $file File array
 	 * @return array{tmp_name: string}
 	 */
-	public function filter_sideload_move_temp_file_to_s3( array $file ) {
+	public function filter_sideload_move_temp_file_to_r2(array $file)
+	{
 		$upload_dir = wp_upload_dir();
-		$new_path = $upload_dir['basedir'] . '/tmp/' . basename( $file['tmp_name'] );
+		$new_path = $upload_dir['basedir'] . '/tmp/' . basename($file['tmp_name']);
 
-		copy( $file['tmp_name'], $new_path );
-		unlink( $file['tmp_name'] );
+		copy($file['tmp_name'], $new_path);
+		unlink($file['tmp_name']);
 		$file['tmp_name'] = $new_path;
 
 		return $file;
@@ -422,13 +410,14 @@ class Plugin {
 	 * @param int                  $attachment_id Attachment ID.
 	 * @return array{file?: string, filesize?: int} Attachment metadata array, with "filesize" value added.
 	 */
-	function set_filesize_in_attachment_meta( array $metadata, int $attachment_id ) : array {
-		$file = get_attached_file( $attachment_id );
-		if ( ! $file ) {
+	function set_filesize_in_attachment_meta(array $metadata, int $attachment_id): array
+	{
+		$file = get_attached_file($attachment_id);
+		if (!$file) {
 			return $metadata;
 		}
-		if ( ! isset( $metadata['filesize'] ) && file_exists( $file ) ) {
-			$metadata['filesize'] = filesize( $file );
+		if (!isset($metadata['filesize']) && file_exists($file)) {
+			$metadata['filesize'] = filesize($file);
 		}
 
 		return $metadata;
@@ -443,12 +432,13 @@ class Plugin {
 	 * @param string $file
 	 * @return array|bool
 	 */
-	public function wp_filter_read_image_metadata( array $meta, string $file ) {
-		remove_filter( 'wp_read_image_metadata', [ $this, 'wp_filter_read_image_metadata' ], 10 );
-		$temp_file = $this->copy_image_from_s3( $file );
-		$meta = wp_read_image_metadata( $temp_file );
-		add_filter( 'wp_read_image_metadata', [ $this, 'wp_filter_read_image_metadata' ], 10, 2 );
-		unlink( $temp_file );
+	public function wp_filter_read_image_metadata(array $meta, string $file)
+	{
+		remove_filter('wp_read_image_metadata', [$this, 'wp_filter_read_image_metadata'], 10);
+		$temp_file = $this->copy_image_from_s3($file);
+		$meta = wp_read_image_metadata($temp_file);
+		add_filter('wp_read_image_metadata', [$this, 'wp_filter_read_image_metadata'], 10, 2);
+		unlink($temp_file);
 		return $meta;
 	}
 
@@ -459,15 +449,16 @@ class Plugin {
 	 * @param string $relation_type
 	 * @return array
 	 */
-	function wp_filter_resource_hints( array $hints, string $relation_type ) : array {
+	function wp_filter_resource_hints(array $hints, string $relation_type): array
+	{
 		if (
-			( defined( 'S3_UPLOADS_DISABLE_REPLACE_UPLOAD_URL' ) && S3_UPLOADS_DISABLE_REPLACE_UPLOAD_URL ) ||
-			( defined( 'S3_UPLOADS_USE_LOCAL' ) && S3_UPLOADS_USE_LOCAL )
+			(defined('R2_UPLOADS_DISABLE_REPLACE_UPLOAD_URL') && R2_UPLOADS_DISABLE_REPLACE_UPLOAD_URL) ||
+			(defined('R2_UPLOADS_USE_LOCAL') && R2_UPLOADS_USE_LOCAL)
 		) {
 			return $hints;
 		}
 
-		if ( 'dns-prefetch' === $relation_type ) {
+		if ('dns-prefetch' === $relation_type) {
 			$hints[] = $this->get_s3_url();
 		}
 
@@ -480,12 +471,13 @@ class Plugin {
 	 * @param string $file
 	 * @return string
 	 */
-	public function copy_image_from_s3( string $file ) : string {
-		if ( ! function_exists( 'wp_tempnam' ) ) {
-			require_once( ABSPATH . 'wp-admin/includes/file.php' );
+	public function copy_image_from_s3(string $file): string
+	{
+		if (!function_exists('wp_tempnam')) {
+			require_once (ABSPATH . 'wp-admin/includes/file.php');
 		}
-		$temp_filename = wp_tempnam( $file );
-		copy( $file, $temp_filename );
+		$temp_filename = wp_tempnam($file);
+		copy($file, $temp_filename);
 		return $temp_filename;
 	}
 
@@ -495,14 +487,15 @@ class Plugin {
 	 * @param integer $attachment_id
 	 * @return boolean
 	 */
-	public function is_private_attachment( int $attachment_id ) : bool {
+	public function is_private_attachment(int $attachment_id): bool
+	{
 		/**
 		 * Filters whether an attachment should be private.
 		 *
 		 * @param bool Whether the attachment is private.
 		 * @param int  The attachment ID.
 		 */
-		$private = apply_filters( 's3_uploads_is_attachment_private', false, $attachment_id );
+		$private = apply_filters('s3_uploads_is_attachment_private', false, $attachment_id);
 		return $private;
 	}
 
@@ -513,25 +506,26 @@ class Plugin {
 	 * @param 'public-read'|'private' $acl public-read|private
 	 * @return WP_Error|null
 	 */
-	public function set_attachment_files_acl( int $attachment_id, string $acl ) : ?WP_Error {
-		$files = static::get_attachment_files( $attachment_id );
-		$locations = array_map( [ $this, 'get_s3_location_for_path' ], $files );
+	public function set_attachment_files_acl(int $attachment_id, string $acl): ?WP_Error
+	{
+		$files = static::get_attachment_files($attachment_id);
+		$locations = array_map([$this, 'get_s3_location_for_path'], $files);
 		// Remove any null items in the array from get_s3_location_for_path().
-		$locations = array_filter( $locations );
+		$locations = array_filter($locations);
 		$s3 = $this->s3();
 		$commands = [];
-		foreach ( $locations as $location ) {
-			$commands[] = $s3->getCommand( 'putObjectAcl', [
+		foreach ($locations as $location) {
+			$commands[] = $s3->getCommand('putObjectAcl', [
 				'Bucket' => $location['bucket'],
 				'Key' => $location['key'],
 				'ACL' => $acl,
-			] );
+			]);
 		}
 
 		try {
-			Aws\CommandPool::batch( $s3, $commands );
-		} catch ( Exception $e ) {
-			return new WP_Error( $e->getCode(), $e->getMessage() );
+			Aws\CommandPool::batch($s3, $commands);
+		} catch (Exception $e) {
+			return new WP_Error($e->getCode(), $e->getMessage());
 		}
 
 		return null;
@@ -543,36 +537,37 @@ class Plugin {
 	 * @param integer $attachment_id
 	 * @return list<string> Array of all full paths to the attachment's files.
 	 */
-	public static function get_attachment_files( int $attachment_id ) : array {
+	public static function get_attachment_files(int $attachment_id): array
+	{
 		$uploadpath = wp_get_upload_dir();
 		/** @var string */
-		$main_file = get_attached_file( $attachment_id );
-		$files = [ $main_file ];
+		$main_file = get_attached_file($attachment_id);
+		$files = [$main_file];
 
-		$meta = wp_get_attachment_metadata( $attachment_id );
-		if ( isset( $meta['sizes'] ) ) {
-			foreach ( $meta['sizes'] as $size => $sizeinfo ) {
+		$meta = wp_get_attachment_metadata($attachment_id);
+		if (isset($meta['sizes'])) {
+			foreach ($meta['sizes'] as $size => $sizeinfo) {
 				$files[] = $uploadpath['basedir'] . $sizeinfo['file'];
 			}
 		}
 
 		/** @var string|false */
-		$original_image = get_post_meta( $attachment_id, 'original_image', true );
-		if ( $original_image ) {
+		$original_image = get_post_meta($attachment_id, 'original_image', true);
+		if ($original_image) {
 			$files[] = $uploadpath['basedir'] . $original_image;
 		}
 
 		/** @var array<string,array{file: string}> */
-		$backup_sizes = get_post_meta( $attachment_id, '_wp_attachment_backup_sizes', true );
-		if ( $backup_sizes ) {
-			foreach ( $backup_sizes as $size => $sizeinfo ) {
+		$backup_sizes = get_post_meta($attachment_id, '_wp_attachment_backup_sizes', true);
+		if ($backup_sizes) {
+			foreach ($backup_sizes as $size => $sizeinfo) {
 				// Backup sizes only store the backup filename, which is relative to the
 				// main attached file, unlike the metadata sizes array.
-				$files[] = path_join( dirname( $main_file ), $sizeinfo['file'] );
+				$files[] = path_join(dirname($main_file), $sizeinfo['file']);
 			}
 		}
 
-		$files = apply_filters( 's3_uploads_get_attachment_files', $files, $attachment_id );
+		$files = apply_filters('s3_uploads_get_attachment_files', $files, $attachment_id);
 
 		return $files;
 	}
@@ -587,12 +582,13 @@ class Plugin {
 	 * @param integer $post_id
 	 * @return string
 	 */
-	public function add_s3_signed_params_to_attachment_url( string $url, int $post_id ) : string {
-		if ( ! $this->is_private_attachment( $post_id ) ) {
+	public function add_r2_signed_params_to_attachment_url(string $url, int $post_id): string
+	{
+		if (!$this->is_private_attachment($post_id)) {
 			return $url;
 		}
-		$path = $this->get_s3_location_for_url( $url );
-		if ( ! $path ) {
+		$path = $this->get_s3_location_for_url($url);
+		if (!$path) {
 			return $url;
 		}
 		$cmd = $this->s3()->getCommand(
@@ -603,14 +599,14 @@ class Plugin {
 			]
 		);
 
-		$presigned_url_expires = apply_filters( 's3_uploads_private_attachment_url_expiry', '+6 hours', $post_id );
-		$query = $this->s3()->createPresignedRequest( $cmd, $presigned_url_expires )->getUri()->getQuery();
+		$presigned_url_expires = apply_filters('s3_uploads_private_attachment_url_expiry', '+6 hours', $post_id);
+		$query = $this->s3()->createPresignedRequest($cmd, $presigned_url_expires)->getUri()->getQuery();
 
 		// The URL could have query params on it already (such as being an already signed URL),
 		// but query params will mean the S3 signed URL will become corrupt. So, we have to
 		// remove all query params.
-		$url = strtok( $url, '?' ) . '?' . $query;
-		$url = apply_filters( 's3_uploads_presigned_url', $url, $post_id );
+		$url = strtok($url, '?') . '?' . $query;
+		$url = apply_filters('s3_uploads_presigned_url', $url, $post_id);
 
 		return $url;
 	}
@@ -622,12 +618,13 @@ class Plugin {
 	 * @param integer|"" $post_id The post id, due to WordPress hook, this can be "", so can't just hint as int.
 	 * @return array{0: string, 1: int, 2: int}|false
 	 */
-	public function add_s3_signed_params_to_attachment_image_src( $image, $post_id ) {
-		if ( ! $image || ! $post_id ) {
+	public function add_r2_signed_params_to_attachment_image_src($image, $post_id)
+	{
+		if (!$image || !$post_id) {
 			return $image;
 		}
 
-		$image[0] = $this->add_s3_signed_params_to_attachment_url( $image[0], $post_id );
+		$image[0] = $this->add_r2_signed_params_to_attachment_url($image[0], $post_id);
 		return $image;
 	}
 
@@ -641,9 +638,10 @@ class Plugin {
 	 * @param integer $post_id
 	 * @return array{url: string, descriptor: string, value: int}[]
 	 */
-	public function add_s3_signed_params_to_attachment_image_srcset( array $sources, array $sizes, string $src, array $meta, int $post_id ) : array {
-		foreach ( $sources as &$source ) {
-			$source['url'] = $this->add_s3_signed_params_to_attachment_url( $source['url'], $post_id );
+	public function add_r2_signed_params_to_attachment_image_srcset(array $sources, array $sizes, string $src, array $meta, int $post_id): array
+	{
+		foreach ($sources as &$source) {
+			$source['url'] = $this->add_r2_signed_params_to_attachment_url($source['url'], $post_id);
 		}
 		return $sources;
 	}
@@ -655,9 +653,10 @@ class Plugin {
 	 * @param int $attachment_id The attachment ID
 	 * @return array
 	 */
-	public function set_attachment_private_on_generate_attachment_metadata( array $metadata, int $attachment_id ) : array {
-		if ( $this->is_private_attachment( $attachment_id ) ) {
-			$this->set_attachment_files_acl( $attachment_id, 'private' );
+	public function set_attachment_private_on_generate_attachment_metadata(array $metadata, int $attachment_id): array
+	{
+		if ($this->is_private_attachment($attachment_id)) {
+			$this->set_attachment_files_acl($attachment_id, 'private');
 		}
 
 		return $metadata;
@@ -670,10 +669,11 @@ class Plugin {
 	 * @param string $dir
 	 * @return array
 	 */
-	public function get_files_for_unique_filename_file_list( ?array $files, string $dir, string $filename ) : array {
-		$name = pathinfo( $filename, PATHINFO_FILENAME );
+	public function get_files_for_unique_filename_file_list(?array $files, string $dir, string $filename): array
+	{
+		$name = pathinfo($filename, PATHINFO_FILENAME);
 		// The s3:// streamwrapper support listing by partial prefixes with wildcards.
 		// For example, scandir( s3://bucket/2019/06/my-image* )
-		return (array) scandir( trailingslashit( $dir ) . $name . '*' );
+		return (array) scandir(trailingslashit($dir) . $name . '*');
 	}
 }
