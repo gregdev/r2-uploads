@@ -328,11 +328,11 @@ class Local_Stream_Wrapper
 		];
 
 		/**
-		 * Action when a new object has been uploaded to s3.
+		 * Action when a new object has been uploaded to r2.
 		 *
 		 * @param array  $params S3Client::putObject parameters.
 		 */
-		do_action('s3_uploads_putObject', $params);
+		do_action('r2_uploads_putObject', $params);
 
 		return $result;
 	}

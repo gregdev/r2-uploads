@@ -331,7 +331,7 @@ class Plugin
 	public function get_aws_sdk(): Aws\Sdk
 	{
 		/** @var null|Aws\Sdk */
-		$sdk = apply_filters('s3_uploads_aws_sdk', null, $this);
+		$sdk = apply_filters('r2_uploads_aws_sdk', null, $this);
 		if ($sdk) {
 			return $sdk;
 		}
@@ -495,7 +495,7 @@ class Plugin
 		 * @param bool Whether the attachment is private.
 		 * @param int  The attachment ID.
 		 */
-		$private = apply_filters('s3_uploads_is_attachment_private', false, $attachment_id);
+		$private = apply_filters('r2_uploads_is_attachment_private', false, $attachment_id);
 		return $private;
 	}
 
@@ -567,7 +567,7 @@ class Plugin
 			}
 		}
 
-		$files = apply_filters('s3_uploads_get_attachment_files', $files, $attachment_id);
+		$files = apply_filters('r2_uploads_get_attachment_files', $files, $attachment_id);
 
 		return $files;
 	}
@@ -599,14 +599,14 @@ class Plugin
 			]
 		);
 
-		$presigned_url_expires = apply_filters('s3_uploads_private_attachment_url_expiry', '+6 hours', $post_id);
+		$presigned_url_expires = apply_filters('r2_uploads_private_attachment_url_expiry', '+6 hours', $post_id);
 		$query = $this->s3()->createPresignedRequest($cmd, $presigned_url_expires)->getUri()->getQuery();
 
 		// The URL could have query params on it already (such as being an already signed URL),
 		// but query params will mean the S3 signed URL will become corrupt. So, we have to
 		// remove all query params.
 		$url = strtok($url, '?') . '?' . $query;
-		$url = apply_filters('s3_uploads_presigned_url', $url, $post_id);
+		$url = apply_filters('r2_uploads_presigned_url', $url, $post_id);
 
 		return $url;
 	}

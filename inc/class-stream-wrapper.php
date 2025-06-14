@@ -210,7 +210,7 @@ class Stream_Wrapper
 						try {
 							$p = $this->params;
 							$p['Body'] = '';
-							$p = apply_filters('s3_uploads_putObject_params', $p);
+							$p = apply_filters('r2_uploads_putObject_params', $p);
 							$this->getClient()->putObject($p);
 						} catch (Exception $e) {
 							return $this->triggerError($e->getMessage());
@@ -273,7 +273,7 @@ class Stream_Wrapper
 		 *
 		 * @param array $params S3Client::putObject parameters.
 		 */
-		$params = apply_filters('s3_uploads_putObject_params', $params);
+		$params = apply_filters('r2_uploads_putObject_params', $params);
 
 		// $this->clearCacheKey( "s3://{$params['Bucket']}/{$params['Key']}" );
 		return $this->boolCall(
@@ -285,7 +285,7 @@ class Stream_Wrapper
 				 *
 				 * @param array  $params S3Client::putObject parameters.
 				 */
-				do_action('s3_uploads_putObject', $params);
+				do_action('r2_uploads_putObject', $params);
 
 				return $bool;
 			}

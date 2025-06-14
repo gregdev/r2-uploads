@@ -128,7 +128,7 @@ Note: as either `<from>` or `<to>` can be S3 or local locations, you must specif
 
 WordPress (and therefor S3 Uploads) default behaviour is that all uploaded media files are publicly accessible. In certain cases which may not be desireable. S3 Uploads supports setting S3 Objects to a `private` ACL and providing temporarily signed URLs for all files that are marked as private.
 
-S3 Uploads does not make assumptions or provide UI for marking attachments as private, instead you should integrate the `s3_uploads_is_attachment_private` WordPress filter to control the behaviour. For example, to mark _all_ attachments as private:
+S3 Uploads does not make assumptions or provide UI for marking attachments as private, instead you should integrate the `r2_uploads_is_attachment_private` WordPress filter to control the behaviour. For example, to mark _all_ attachments as private:
 
 ```php
 add_filter( 'r2_uploads_is_attachment_private', '__return_true' );
@@ -137,10 +137,10 @@ add_filter( 'r2_uploads_is_attachment_private', '__return_true' );
 Private uploads can be transitioned to public by calling `R2_Uploads::set_attachment_files_acl( $id, 'public-read' )` or vica-versa. For example:
 
 ```php
-S3_Uploads::get_instance()->set_attachment_files_acl( 15, 'public-read' );
+R2_Uploads::get_instance()->set_attachment_files_acl( 15, 'public-read' );
 ```
 
-The default expiry for all private file URLs is 6 hours. You can modify this by using the `s3_uploads_private_attachment_url_expiry` WordPress filter. The value can be any string interpreted by `strtotime`. For example:
+The default expiry for all private file URLs is 6 hours. You can modify this by using the `r2_uploads_private_attachment_url_expiry` WordPress filter. The value can be any string interpreted by `strtotime`. For example:
 
 ```php
 add_filter( 'r2_uploads_private_attachment_url_expiry', function ( $expiry ) {
@@ -242,10 +242,10 @@ add_filter( 'r2_uploads_r2_client_params', function ( $params ) {
 
 ## Offline Development
 
-While it's possible to use S3 Uploads for local development (this is actually a nice way to not have to sync all uploads from production to development),
+While it's possible to use R2 Uploads for local development (this is actually a nice way to not have to sync all uploads from production to development),
 if you want to develop offline you have a couple of options.
 
-1. Just disable the S3 Uploads plugin in your development environment.
+1. Just disable the R2 Uploads plugin in your development environment.
 2. Define the `R2_UPLOADS_USE_LOCAL` constant with the plugin active.
 
 Option 2 will allow you to run the S3 Uploads plugin for production parity purposes, it will essentially mock
