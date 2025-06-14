@@ -343,6 +343,7 @@ class Plugin
 			$params['credentials']['secret'] = $this->secret;
 		}
 
+		$params['region'] = 'default';  // R2 does not use regions, but the SDK requires a region.
 		$params['signature'] = 'v4';
 
 		if (defined('WP_PROXY_HOST') && defined('WP_PROXY_PORT')) {
