@@ -337,13 +337,11 @@ class Plugin
 		}
 
 		$params = ['version' => 'latest'];
+		$params['endpoint'] = sprintf('https://%s.r2.cloudflarestorage.com', constant('R2_UPLOADS_CLOUDFLARE_ACCOUNT_ID'));
+		$params['credentials']['key'] = $this->key;
+		$params['credentials']['secret'] = $this->secret;
 
-		if ($this->key && $this->secret) {
-			$params['credentials']['key'] = $this->key;
-			$params['credentials']['secret'] = $this->secret;
-		}
-
-		$params['region'] = 'default';  // R2 does not use regions, but the SDK requires a region.
+		$params['region'] = 'auto';  // R2 does not use regions, but the SDK requires a region.
 		$params['signature'] = 'v4';
 
 		if (defined('WP_PROXY_HOST') && defined('WP_PROXY_PORT')) {
@@ -355,6 +353,8 @@ class Plugin
 			}
 
 			$params['request.options']['proxy'] = $proxy_auth . $proxy_address;
+
+
 		}
 
 		$params = apply_filters('r2_uploads_r2_client_params', $params);
@@ -673,6 +673,7 @@ class Plugin
 	public function get_files_for_unique_filename_file_list(?array $files, string $dir, string $filename): array
 	{
 		$name = pathinfo($filename, PATHINFO_FILENAME);
+
 		// The s3:// streamwrapper support listing by partial prefixes with wildcards.
 		// For example, scandir( s3://bucket/2019/06/my-image* )
 		return (array) scandir(trailingslashit($dir) . $name . '*');
